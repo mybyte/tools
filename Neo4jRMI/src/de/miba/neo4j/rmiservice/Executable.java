@@ -42,9 +42,10 @@ public class Executable {
 		if (failoverFile.exists() && failoverFile.canRead()) {
 			System.out.println("Found failover file, restoring queue...");
 			try {
-				ObjectInputStream ois = new ObjectInputStream(new FileInputStream(failoverFile));				
+				ObjectInputStream ois = new ObjectInputStream(
+						new FileInputStream(failoverFile));
 				Object ob = ois.readObject();
-				if(ob instanceof Queue<?>)
+				if (ob instanceof Queue<?>)
 					queryQueue = (Queue<String>) ob;
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -67,40 +68,42 @@ public class Executable {
 
 		System.out.println("Remote service bound. Starting event queue.");
 
+		Transaction tx = db.beginTx();
+		long starttime = System.currentTimeMillis();
+		long timetracker = starttime;
+		
+		PerformanceTracker tracker = new PerformanceTracker();
+		
+		for(int i=0; i<3; i++){
+			QueueProcessor processor = new QueueProcessor(cypherEngine, queryQueue, tracker);
+			processor.start();
+		}
+
 		// event queue
 		while (true) {
-			String query = null;
-			synchronized (queryQueue) {
-				while (queryQueue.isEmpty()) {
-					System.out.println("Queue is empty, sleeping...");
-					try {
-						queryQueue.wait();
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-				}
-
-				if (queryQueue.isEmpty())
-					continue;
-
-				query = queryQueue.remove();
-			}
-
-			if (query != null && !query.isEmpty()) {
-				System.out.println("Running query: " + query);
-				Transaction tx = db.beginTx();
-				try {
-					cypherEngine.execute(query);
+			long time_passed = System.currentTimeMillis() - timetracker;
+			System.out.println(tracker.processedItems + " items processed. Speed: "+tracker.speed+" items/s");
+			// batch commit
+			if (tracker.getItemsProcessed()>0 && (tracker.getItemsProcessed() % 500 == 0 || time_passed >= 15000)) {
+				synchronized (cypherEngine) {
+					System.out.println("Commit.");
 					tx.success();
-				} catch (Exception e) {
-					e.printStackTrace();
-					tx.failure();
-				} finally {
 					tx.finish();
+					tx = db.beginTx();
 				}
-
+				
+				timetracker = System.currentTimeMillis();				
+			}
+			try {
+				Thread.sleep(5000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
 		}
 	}
 
+	
+
+	
 }
