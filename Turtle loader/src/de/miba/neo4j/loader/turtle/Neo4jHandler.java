@@ -1,8 +1,13 @@
 package de.miba.neo4j.loader.turtle;
 
+import org.neo4j.graphdb.Direction;
+import org.neo4j.graphdb.DynamicLabel;
 import org.neo4j.graphdb.DynamicRelationshipType;
 import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
+import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.index.IndexHits;
@@ -51,8 +56,19 @@ public class Neo4jHandler implements RDFHandler {
 				index.add(subjectNode, "resource", subject.stringValue());
 			}
 
-			if (object instanceof Literal) {
-				@SuppressWarnings("unused")
+			// add Label if this is a type entry
+			if (predicate.stringValue().equals("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")) {
+				String label = ((URI) object).getLocalName();
+				boolean hit = false;
+				for (Label lbl : subjectNode.getLabels())
+					if (label.equals(lbl)) {
+						hit = true;
+						break;
+					}
+				if (!hit)
+					subjectNode.addLabel(DynamicLabel.label(label));
+
+			} else if (object instanceof Literal) {
 				URI type = ((Literal) object).getDatatype();
 				Object value;
 				if (type == null) // treat as String
@@ -60,8 +76,7 @@ public class Neo4jHandler implements RDFHandler {
 				else {
 					String localName = type.getLocalName();
 
-					if (localName.toLowerCase().contains("integer")
-							|| localName.equals("long")) {
+					if (localName.toLowerCase().contains("integer") || localName.equals("long")) {
 						value = ((Literal) object).longValue();
 					} else if (localName.toLowerCase().contains("short")) {
 						value = ((Literal) object).shortValue();
@@ -79,13 +94,13 @@ public class Neo4jHandler implements RDFHandler {
 						value = ((Literal) object).stringValue();
 					}
 				}
-				
+
 				subjectNode.setProperty(predicateName, value);
 
 			} else { // must be Resource
 				// Make sure object exists
 				Node objectNode;
-				
+
 				hits = index.get("resource", object.stringValue());
 				if (hits.hasNext()) { // node exists
 					objectNode = hits.next();
@@ -95,8 +110,19 @@ public class Neo4jHandler implements RDFHandler {
 					index.add(objectNode, "resource", object.stringValue());
 				}
 
-				subjectNode.createRelationshipTo(objectNode,
-						DynamicRelationshipType.withName(predicateName)).setProperty("__URI__", predicate.stringValue());
+				// Make sure this relationship is unique
+				RelationshipType relType = DynamicRelationshipType.withName(predicateName);
+				boolean hit = false;
+				for (Relationship rel : subjectNode.getRelationships(Direction.OUTGOING, relType)) {
+					if (rel.getEndNode().equals(objectNode)) {
+						hit = true;
+					}
+				}
+
+				if (!hit) { // Only create relationship, if it didn't exist
+					subjectNode.createRelationshipTo(objectNode, DynamicRelationshipType.withName(predicateName)).setProperty("__URI__",
+							predicate.stringValue());
+				}
 			}
 
 			totalNodes++;
@@ -104,14 +130,13 @@ public class Neo4jHandler implements RDFHandler {
 			long nodeDelta = totalNodes - sinceLastCommit;
 			long timeDelta = (System.currentTimeMillis() - tick) / 1000;
 
-			if (nodeDelta >= 150000 || timeDelta >= 30) {
+			if (nodeDelta >= 150000 || timeDelta >= 30) { // Commit every 150k operations or every 30 seconds
 				tx.success();
 				tx.finish();
 				tx = db.beginTx();
 
 				sinceLastCommit = totalNodes;
-				System.out.println(totalNodes + " triples @ ~"
-						+ (double) nodeDelta / timeDelta + " triples/second.");
+				System.out.println(totalNodes + " triples @ ~" + (double) nodeDelta / timeDelta + " triples/second.");
 				tick = System.currentTimeMillis();
 			}
 		} catch (Exception e) {
@@ -138,8 +163,7 @@ public class Neo4jHandler implements RDFHandler {
 	}
 
 	@Override
-	public void handleNamespace(String arg0, String arg1)
-			throws RDFHandlerException {
+	public void handleNamespace(String arg0, String arg1) throws RDFHandlerException {
 		// TODO Auto-generated method stub
 
 	}
