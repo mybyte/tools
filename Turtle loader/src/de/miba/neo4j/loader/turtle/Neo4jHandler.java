@@ -47,6 +47,7 @@ public class Neo4jHandler implements RDFHandler {
 				subjectNode = hits.next();
 			} else {
 				subjectNode = db.createNode();
+				subjectNode.setProperty("__URI__", subject.stringValue());
 				index.add(subjectNode, "resource", subject.stringValue());
 			}
 
@@ -84,16 +85,18 @@ public class Neo4jHandler implements RDFHandler {
 			} else { // must be Resource
 				// Make sure object exists
 				Node objectNode;
+				
 				hits = index.get("resource", object.stringValue());
 				if (hits.hasNext()) { // node exists
 					objectNode = hits.next();
 				} else {
 					objectNode = db.createNode();
+					objectNode.setProperty("__URI__", object.stringValue());
 					index.add(objectNode, "resource", object.stringValue());
 				}
 
 				subjectNode.createRelationshipTo(objectNode,
-						DynamicRelationshipType.withName(predicateName)).setProperty("URI", predicate.stringValue());
+						DynamicRelationshipType.withName(predicateName)).setProperty("__URI__", predicate.stringValue());
 			}
 
 			totalNodes++;
