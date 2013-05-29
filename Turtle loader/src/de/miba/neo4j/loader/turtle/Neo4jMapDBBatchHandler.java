@@ -174,8 +174,6 @@ public class Neo4jMapDBBatchHandler implements RDFHandler {
 			// periodical flush
 			if (nodeDelta >= indexCache || timeDelta >= timeout) {
 				index.flush();
-				// clear HashMap after flushing
-				tmpIndex.clear();
 
 				triplesLastCommit = totalTriples;
 				System.out.println(totalTriples + " triples, " + addedNodes + " nodes @ ~" + nodeDelta / timeDelta + " triples/second.");
