@@ -4,10 +4,7 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.HashMap;
-import java.util.Map;
-
 import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.factory.HighlyAvailableGraphDatabaseFactory;
 import org.openrdf.rio.RDFParser;
 import org.openrdf.rio.turtle.TurtleParser;
@@ -28,7 +25,7 @@ public class Executable {
 		if(!file.canRead())
 			throw new Exception("Can't read the file.");
 				
-		HashMap<String, String> settings = new HashMap<>();
+		HashMap<String, String> settings = new HashMap<String, String>();
 		settings.put("org.neo4j.server.database.mode", "HA");
 
 		GraphDatabaseService db = new HighlyAvailableGraphDatabaseFactory()
